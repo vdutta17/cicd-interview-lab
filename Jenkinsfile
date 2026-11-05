@@ -28,5 +28,14 @@ pipeline {
                 '''
             }
         }
+
+        stage('Test application') {
+            steps {
+                sh '''
+                    node-22 --check server.js
+                    node-22 --test
+                '''
+            }
+        }
     }
 }
