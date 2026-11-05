@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { createServer } from './server.js';
 
 for (const [path, status, expected] of [
-  ['/health', 200, { status: 'ok' }],
+  ['/health', 201, { status: 'ok' }],
   ['/', 200, { service: 'cicd-interview-lab', version: 'local' }],
   ['/missing', 404, { error: 'Not found' }],
 ]) {
