@@ -60,6 +60,29 @@ pipeline {
         
                     docker image inspect --format '{{.Id}}' "$image"
                     echo "Built $image"
+
+                    container=$(docker run -d "$image")
+                    trap 'docker rm -f "$container" >/dev/null 2>&1 || true' EXIT
+                    
+                    for attempt in $(seq 1 15); do
+                        if docker exec "$container" node -e '
+                            fetch("http://127.0.0.1:3000/health", {
+                                signal: AbortSignal.timeout(1000)
+                            })
+                              .then(response => {
+                                  if (response.status !== 200) process.exit(1);
+                              })
+                              .catch(() => process.exit(1));
+                        '; then
+                            echo "Smoke test passed: /health returned HTTP 200"
+                            exit 0
+                        fi
+                        sleep 1
+                    done
+                    
+                    echo "Smoke test failed: /health did not return HTTP 200"
+                    docker logs "$container"
+                    exit 1
                 '''
             }
         }
