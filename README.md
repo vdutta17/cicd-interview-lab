@@ -30,7 +30,7 @@ There are no third-party application dependencies.
 
 ## Next stages
 
-1. AWS region: `us-west-1`. Repository: `vdutta17/cicd-interview-lab`.
+1. AWS region: `us-east-1`. Repository: `vdutta17/cicd-interview-lab`.
 2. Provision ECR, ECS Fargate, networking, load balancer, CloudWatch, and IAM with Terraform.
 3. Add GitHub Actions: checks on pull requests; build, push, deploy on main.
 4. Add the equivalent Jenkins pipeline and configure its execution agent.
