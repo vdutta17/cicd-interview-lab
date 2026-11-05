@@ -37,5 +37,31 @@ pipeline {
                 '''
             }
         }
+
+        stage('Build Docker image') {
+            when {
+                beforeAgent true
+                branch 'main'
+            }
+            agent { label 'docker' }
+            options {
+                skipDefaultCheckout()
+            }
+            steps {
+                checkout scm
+                sh '''
+                    set -eu
+                    commit=$(git rev-parse HEAD)
+                    image="cicd-interview-lab:${commit}"
+        
+                    docker build \
+                        --label "org.opencontainers.image.revision=${commit}" \
+                        -t "$image" .
+        
+                    docker image inspect --format '{{.Id}}' "$image"
+                    echo "Built $image"
+                '''
+            }
+        }
     }
 }
