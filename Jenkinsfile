@@ -84,6 +84,28 @@ pipeline {
                     docker logs "$container"
                     exit 1
                 '''
+                sh '''
+                    set -eu
+                    set +x
+                
+                    region=us-east-2
+                    account=$(aws sts get-caller-identity --query Account --output text)
+                    registry="${account}.dkr.ecr.${region}.amazonaws.com"
+                    commit=$(git rev-parse HEAD)
+                    image="cicd-interview-lab:${commit}"
+                    remote_image="${registry}/${image}"
+                
+                    DOCKER_CONFIG=$(mktemp -d)
+                    export DOCKER_CONFIG
+                    trap 'rm -rf "$DOCKER_CONFIG"' EXIT
+                
+                    password=$(aws ecr get-login-password --region "$region")
+                    printf '%s' "$password" | docker login --username AWS --password-stdin "$registry"
+                    unset password
+                
+                    docker tag "$image" "$remote_image"
+                    docker push "$remote_image"
+                '''
             }
         }
     }
