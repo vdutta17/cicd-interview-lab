@@ -106,7 +106,63 @@ pipeline {
                     docker tag "$image" "$remote_image"
                     docker push "$remote_image"
                 '''
-                sh(label: 'Deploy to ECS DEV', ...)
+                sh(label: 'Deploy to ECS DEV', script: '''
+                    set -eu
+                    export AWS_DEFAULT_REGION=us-east-2
+                    export AWS_PAGER=""
+                
+                    cluster=cicd-interview-lab
+                    service=cicd-interview-lab-dev
+                    repository=cicd-interview-lab
+                    registry=297208880406.dkr.ecr.us-east-2.amazonaws.com
+                    commit=$(git rev-parse HEAD)
+                
+                    digest=$(aws ecr batch-get-image \
+                        --repository-name "$repository" \
+                        --image-ids "imageTag=$commit" \
+                        --query 'images[0].imageId.imageDigest' --output text)
+                    case "$digest" in
+                        sha256:*) ;;
+                        *) echo "ECR image digest not found for $commit" >&2; exit 1 ;;
+                    esac
+                    image="$registry/$repository@$digest"
+                
+                    service_json=$(aws ecs describe-services \
+                        --cluster "$cluster" --services "$service")
+                    current=$(printf '%s' "$service_json" |
+                        jq -er '.services[0] | select(.desiredCount > 0) | .taskDefinition')
+                
+                    task_file=$(mktemp)
+                    trap 'rm -f "$task_file"' EXIT
+                
+                    definition=$(aws ecs describe-task-definition --task-definition "$current")
+                    printf '%s' "$definition" | jq -e --arg image "$image" '
+                        .taskDefinition
+                        | select(any(.containerDefinitions[]; .name == "app"))
+                        | del(.taskDefinitionArn, .revision, .status, .requiresAttributes,
+                              .compatibilities, .registeredAt, .registeredBy, .deregisteredAt)
+                        | (.containerDefinitions[] | select(.name == "app") | .image) = $image
+                    ' > "$task_file"
+                
+                    revision=$(aws ecs register-task-definition \
+                        --cli-input-json "file://$task_file" \
+                        --query 'taskDefinition.taskDefinitionArn' --output text)
+                
+                    echo "Previous revision: $current"
+                    echo "Deploying $image with $revision"
+                
+                    aws ecs update-service --cluster "$cluster" --service "$service" \
+                        --task-definition "$revision" >/dev/null
+                    aws ecs wait services-stable --cluster "$cluster" --services "$service"
+                
+                    active=$(aws ecs describe-services --cluster "$cluster" --services "$service" \
+                        --query 'services[0].taskDefinition' --output text)
+                    if [ "$active" != "$revision" ]; then
+                        echo "Expected $revision but ECS is running $active" >&2
+                        exit 1
+                    fi
+                    echo "DEV is stable on $revision"
+                ''')
             }
         }
     }
