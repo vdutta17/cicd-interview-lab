@@ -106,6 +106,7 @@ pipeline {
                     docker tag "$image" "$remote_image"
                     docker push "$remote_image"
                 '''
+                sh(label: 'Deploy to ECS DEV', ...)
             }
         }
     }
